@@ -74,6 +74,45 @@ describe('wordAt', () => {
 		assert.equal(wordAt('hello', 0, 2), null);
 	});
 
+	it('selects English touching Chinese on either or both sides', () => {
+		for (const line of [
+			'喜欢使用Obsidian 整理学习笔记。',
+			'喜欢使用Obsidian整理学习笔记。',
+			'Obsidian整理学习笔记。',
+			'喜欢使用Obsidian',
+		]) {
+			const from = line.indexOf('Obsidian');
+			const to = from + 'Obsidian'.length;
+			for (let pos = from; pos < to; pos++) {
+				assert.deepEqual(wordAt(line, 0, pos), { from, to }, `${line} at ${pos}`);
+			}
+		}
+	});
+
+	it('returns absolute ranges on later lines', () => {
+		const line = '喜欢使用Obsidian整理笔记';
+		assert.deepEqual(wordAt(line, 50, 58), { from: 54, to: 62 });
+	});
+
+	it('selects English touching Japanese', () => {
+		const line = '私はObsidianを使います';
+		assert.deepEqual(wordAt(line, 0, 6), { from: 2, to: 10 });
+	});
+
+	it('selects an English word containing a number next to Chinese', () => {
+		assert.deepEqual(wordAt('使用GPT4学习', 0, 4), { from: 2, to: 6 });
+	});
+
+	it('keeps defaults for English separated from Chinese by spaces or punctuation', () => {
+		for (const line of ['中文 hello world', '中文,hello', '中文。hello', '中文 hello-world']) {
+			assert.equal(wordAt(line, 0, line.indexOf('hello') + 2), null);
+		}
+	});
+
+	it('still selects Chinese words in mixed text', () => {
+		assert.deepEqual(wordAt('Obsidian中文', 0, 9), { from: 8, to: 10 });
+	});
+
 	it('selects one Japanese word, not the whole sentence', () => {
 		const line = '私は猫です';
 		const range = wordAt(line, 0, 0);

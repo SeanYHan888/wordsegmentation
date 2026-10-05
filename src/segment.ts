@@ -3,8 +3,9 @@
  *
  * Obsidian/CodeMirror treat every “word” character as one group, so a Japanese
  * sentence with no spaces counts as a single word. We use Intl.Segmenter on the
- * current line only when the character next to the cursor needs a dictionary.
- * Returning null means “leave this keystroke to Obsidian’s default”.
+ * current line when the character next to the cursor needs a dictionary. Pointer
+ * selection also checks the surrounding word for a dictionary script.
+ * Returning null means “leave this action to Obsidian’s default”.
  */
 
 export type SegmentLocale = 'ja' | 'zh' | 'th' | 'lo' | 'km' | 'my';
@@ -125,13 +126,26 @@ export function nextWordBoundary(
 	return null;
 }
 
+/** Look for a dictionary script in the uninterrupted word around the pointer. */
+function localeInWord(lineText: string, offset: number): SegmentLocale | null {
+	const before = lineText.slice(0, offset).match(/[\p{L}\p{M}\p{N}_]+$/u)?.[0] ?? '';
+	const after = lineText.slice(offset).match(/^[\p{L}\p{M}\p{N}_]+/u)?.[0] ?? '';
+	for (const ch of before + after) {
+		const locale = localeForChar(ch, lineText);
+		if (locale) return locale;
+	}
+	return null;
+}
+
 /** Word under `pos` for double-click / double-tap, or null to leave alone. */
 export function wordAt(lineText: string, lineFrom: number, pos: number): WordRange | null {
+	const offset = Math.max(0, Math.min(pos - lineFrom, lineText.length));
 	let locale = probeLocale(lineText, lineFrom, pos, true);
 	if (!locale) locale = probeLocale(lineText, lineFrom, pos, false);
+	// A click inside Latin text can still belong to a word touching Chinese, etc.
+	if (!locale) locale = localeInWord(lineText, offset);
 	if (!locale) return null;
 
-	const offset = Math.max(0, Math.min(pos - lineFrom, lineText.length));
 	const words = wordSegments(lineText, locale);
 	for (const w of words) {
 		const end = w.index + w.length;
